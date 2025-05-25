@@ -126,7 +126,7 @@ public class UserController {
      */
     @PostMapping("/{userId}/books/{bookId}")
     public ResponseEntity<User> borrowBook(@PathVariable Long userId, @PathVariable Long bookId) {
-        Optional<User> user = userService.borrowBook(userId, bookId);
+        Optional<User> user = userService.borrowBook(bookId);
         return user.map(ResponseEntity::ok)
                 .orElse(ResponseEntity.badRequest().build());
     }
@@ -139,7 +139,7 @@ public class UserController {
      */
     @DeleteMapping("/{userId}/books/{bookId}")
     public ResponseEntity<User> returnBook(@PathVariable Long userId, @PathVariable Long bookId) {
-        Optional<User> user = userService.returnBook(userId, bookId);
+        Optional<User> user = userService.returnBook( bookId);
         return user.map(ResponseEntity::ok)
                 .orElse(ResponseEntity.badRequest().build());
     }
@@ -171,7 +171,7 @@ public class UserController {
                                                @AuthenticationPrincipal UserDetails userDetails) {
         Optional<User> userOpt = userService.getUserByUsername(userDetails.getUsername());
         if (userOpt.isPresent()) {
-            Optional<User> user = userService.borrowBook(userOpt.get().getId(), bookId);
+            Optional<User> user = userService.borrowBook(bookId);
             return user.map(ResponseEntity::ok)
                     .orElse(ResponseEntity.badRequest().build());
         }
@@ -189,7 +189,7 @@ public class UserController {
                                                @AuthenticationPrincipal UserDetails userDetails) {
         Optional<User> userOpt = userService.getUserByUsername(userDetails.getUsername());
         if (userOpt.isPresent()) {
-            Optional<User> user = userService.returnBook(userOpt.get().getId(), bookId);
+            Optional<User> user = userService.returnBook(bookId);
             return user.map(ResponseEntity::ok)
                     .orElse(ResponseEntity.badRequest().build());
         }
