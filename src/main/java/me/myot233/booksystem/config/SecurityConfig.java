@@ -81,20 +81,28 @@ public class SecurityConfig {
             .authorizeHttpRequests(authorize -> authorize
                 // 允许系统信息和健康检查接口
                 .requestMatchers("/", "/health").permitAll()
-                // 允许认证相关请求
+                // 允许认证相关请求（包括登录和注册）
                 .requestMatchers("/api/auth/**").permitAll()
                 // 允许WebSocket连接
                 .requestMatchers("/ws/**").permitAll()
-                // 允许图书相关请求（临时开放）
-                .requestMatchers("/api/books/**").permitAll()
-                // 允许用户注册
-                .requestMatchers(HttpMethod.POST, "/api/users").permitAll()
-                // 当前用户信息需要认证
+                // 允许图书查询请求
+                .requestMatchers(HttpMethod.GET, "/api/books/**").permitAll()
+                // 图书管理操作需要管理员权限
+                .requestMatchers(HttpMethod.POST, "/api/books").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.PUT, "/api/books/**").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.DELETE, "/api/books/**").hasRole("ADMIN")
+                // 当前用户信息需要认证（必须在/api/users/**之前）
                 .requestMatchers("/api/users/me").authenticated()
-                // 通知相关接口需要认证
-                .requestMatchers("/api/notifications/**").authenticated()
+                // 用户自己的借阅管理需要认证（普通用户权限）
+                .requestMatchers("/api/users/me/books/**").authenticated()
+                .requestMatchers(HttpMethod.GET, "/api/users/me/books").authenticated()
+                // 管理员管理所有用户借阅需要管理员权限
+                .requestMatchers("/api/users/*/books/**").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.GET, "/api/users/*/books").hasRole("ADMIN")
                 // 用户管理需要管理员权限
                 .requestMatchers("/api/users/**").hasRole("ADMIN")
+                // 通知相关接口需要认证
+                .requestMatchers("/api/notifications/**").authenticated()
                 // /admin/**路径，需要ADMIN角色
                 .requestMatchers("/admin/**").hasRole("ADMIN")
                 // /user/**路径，需要USER或ADMIN角色

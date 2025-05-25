@@ -148,29 +148,5 @@ public class BookController {
         }
     }
 
-    /**
-     * 借阅图书
-     *
-     * @param id 图书ID
-     * @return 借阅后的图书
-     */
-    @PutMapping("/{id}/borrow")
-    public ResponseEntity<Book> borrowBook(@PathVariable Long id) {
-        Optional<Book> book = bookService.borrowBook(id);
-        return book.map(ResponseEntity::ok)
-                .orElse(ResponseEntity.badRequest().build());
-    }
 
-    /**
-     * 归还图书
-     *
-     * @param id 图书ID
-     * @return 归还后的图书
-     */
-    @PutMapping("/{id}/return")
-    public ResponseEntity<Book> returnBook(@PathVariable Long id) {
-        Optional<Book> book = bookService.returnBook(id);
-        return book.map(ResponseEntity::ok)
-                .orElse(ResponseEntity.badRequest().build());
-    }
 }

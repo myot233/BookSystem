@@ -19,14 +19,14 @@ import java.util.Optional;
 @RestController
 @RequestMapping("/api/users")
 public class UserController {
-    
+
     private final UserService userService;
-    
+
     @Autowired
     public UserController(UserService userService) {
         this.userService = userService;
     }
-    
+
     /**
      * 获取当前登录用户信息
      * @param userDetails 当前登录用户
@@ -41,7 +41,7 @@ public class UserController {
         }
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
     }
-    
+
     /**
      * 获取所有用户
      * @return 用户列表
@@ -50,7 +50,7 @@ public class UserController {
     public ResponseEntity<List<User>> getAllUsers() {
         return ResponseEntity.ok(userService.getAllUsers());
     }
-    
+
     /**
      * 根据ID获取用户
      * @param id 用户ID
@@ -62,7 +62,7 @@ public class UserController {
         return user.map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
-    
+
     /**
      * 创建用户
      * @param user 用户
@@ -76,7 +76,7 @@ public class UserController {
         }
         return new ResponseEntity<>(userService.createUser(user), HttpStatus.CREATED);
     }
-    
+
     /**
      * 更新用户
      * @param id 用户ID
@@ -90,7 +90,7 @@ public class UserController {
         return updatedUser.map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
-    
+
     /**
      * 删除用户
      * @param id 用户ID
@@ -104,9 +104,9 @@ public class UserController {
         }
         return ResponseEntity.notFound().build();
     }
-    
+
     /**
-     * 获取用户借阅的图书
+     * 获取用户借阅的图书（管理员）
      * @param id 用户ID
      * @return 图书列表
      */
@@ -117,9 +117,9 @@ public class UserController {
         }
         return ResponseEntity.notFound().build();
     }
-    
+
     /**
-     * 借阅图书
+     * 借阅图书（管理员）
      * @param userId 用户ID
      * @param bookId 图书ID
      * @return 更新后的用户
@@ -130,9 +130,9 @@ public class UserController {
         return user.map(ResponseEntity::ok)
                 .orElse(ResponseEntity.badRequest().build());
     }
-    
+
     /**
-     * 归还图书
+     * 归还图书（管理员操作）
      * @param userId 用户ID
      * @param bookId 图书ID
      * @return 更新后的用户
@@ -142,5 +142,57 @@ public class UserController {
         Optional<User> user = userService.returnBook(userId, bookId);
         return user.map(ResponseEntity::ok)
                 .orElse(ResponseEntity.badRequest().build());
+    }
+
+    // ==================== 用户自己的借阅管理接口 ====================
+
+    /**
+     * 获取当前用户借阅的图书
+     * @param userDetails 当前登录用户
+     * @return 图书列表
+     */
+    @GetMapping("/me/books")
+    public ResponseEntity<List<Book>> getMyBorrowedBooks(@AuthenticationPrincipal UserDetails userDetails) {
+        Optional<User> userOpt = userService.getUserByUsername(userDetails.getUsername());
+        if (userOpt.isPresent()) {
+            return ResponseEntity.ok(userService.getBorrowedBooks(userOpt.get().getId()));
+        }
+        return ResponseEntity.notFound().build();
+    }
+
+    /**
+     * 当前用户借阅图书
+     * @param bookId 图书ID
+     * @param userDetails 当前登录用户
+     * @return 更新后的用户
+     */
+    @PostMapping("/me/books/{bookId}")
+    public ResponseEntity<User> borrowBookForMe(@PathVariable Long bookId,
+                                               @AuthenticationPrincipal UserDetails userDetails) {
+        Optional<User> userOpt = userService.getUserByUsername(userDetails.getUsername());
+        if (userOpt.isPresent()) {
+            Optional<User> user = userService.borrowBook(userOpt.get().getId(), bookId);
+            return user.map(ResponseEntity::ok)
+                    .orElse(ResponseEntity.badRequest().build());
+        }
+        return ResponseEntity.notFound().build();
+    }
+
+    /**
+     * 当前用户归还图书
+     * @param bookId 图书ID
+     * @param userDetails 当前登录用户
+     * @return 更新后的用户
+     */
+    @DeleteMapping("/me/books/{bookId}")
+    public ResponseEntity<User> returnBookForMe(@PathVariable Long bookId,
+                                               @AuthenticationPrincipal UserDetails userDetails) {
+        Optional<User> userOpt = userService.getUserByUsername(userDetails.getUsername());
+        if (userOpt.isPresent()) {
+            Optional<User> user = userService.returnBook(userOpt.get().getId(), bookId);
+            return user.map(ResponseEntity::ok)
+                    .orElse(ResponseEntity.badRequest().build());
+        }
+        return ResponseEntity.notFound().build();
     }
 }

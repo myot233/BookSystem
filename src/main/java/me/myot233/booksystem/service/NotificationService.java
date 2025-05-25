@@ -2,6 +2,7 @@ package me.myot233.booksystem.service;
 
 import me.myot233.booksystem.entity.Notification;
 import me.myot233.booksystem.repository.NotificationRepository;
+import me.myot233.booksystem.service.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
@@ -16,13 +17,16 @@ import java.util.Optional;
 @Service
 @Transactional
 public class NotificationService {
-    
+
     @Autowired
     private NotificationRepository notificationRepository;
-    
+
     @Autowired
     private SimpMessagingTemplate messagingTemplate;
-    
+
+    @Autowired
+    private UserService userService;
+
     /**
      * 创建并发送通知
      * @param userId 用户ID
@@ -32,7 +36,7 @@ public class NotificationService {
      * @param bookId 相关图书ID（可选）
      * @return 创建的通知
      */
-    public Notification createAndSendNotification(Long userId, String title, String content, 
+    public Notification createAndSendNotification(Long userId, String title, String content,
                                                 Notification.NotificationType type, Long bookId) {
         // 创建通知
         Notification notification = new Notification();
@@ -41,16 +45,16 @@ public class NotificationService {
         notification.setContent(content);
         notification.setType(type);
         notification.setBookId(bookId);
-        
+
         // 保存到数据库
         notification = notificationRepository.save(notification);
-        
+
         // 通过WebSocket发送实时通知
         sendRealTimeNotification(userId, notification);
-        
+
         return notification;
     }
-    
+
     /**
      * 发送实时通知
      * @param userId 用户ID
@@ -59,11 +63,11 @@ public class NotificationService {
     public void sendRealTimeNotification(Long userId, Notification notification) {
         // 发送给特定用户
         messagingTemplate.convertAndSendToUser(
-            userId.toString(), 
-            "/queue/notifications", 
+            userId.toString(),
+            "/queue/notifications",
             notification
         );
-        
+
         // 同时发送未读通知数量
         long unreadCount = getUnreadNotificationCount(userId);
         messagingTemplate.convertAndSendToUser(
@@ -72,23 +76,31 @@ public class NotificationService {
             unreadCount
         );
     }
-    
+
     /**
      * 广播系统通知给所有用户
      * @param title 标题
      * @param content 内容
      */
     public void broadcastSystemNotification(String title, String content) {
-        // 这里可以获取所有用户并发送通知
-        // 为简化，我们发送到公共频道
-        Notification notification = new Notification();
-        notification.setTitle(title);
-        notification.setContent(content);
-        notification.setType(Notification.NotificationType.SYSTEM_MESSAGE);
-        
-        messagingTemplate.convertAndSend("/topic/system-notifications", notification);
+        // 获取所有用户
+        List<me.myot233.booksystem.entity.User> allUsers = userService.getAllUsers();
+
+        // 为每个用户创建通知记录
+        for (me.myot233.booksystem.entity.User user : allUsers) {
+            createAndSendNotification(user.getId(), title, content,
+                Notification.NotificationType.SYSTEM_MESSAGE, null);
+        }
+
+        // 同时发送WebSocket广播（用于实时通知）
+        Notification broadcastNotification = new Notification();
+        broadcastNotification.setTitle(title);
+        broadcastNotification.setContent(content);
+        broadcastNotification.setType(Notification.NotificationType.SYSTEM_MESSAGE);
+
+        messagingTemplate.convertAndSend("/topic/system-notifications", broadcastNotification);
     }
-    
+
     /**
      * 获取用户的所有通知
      * @param userId 用户ID
@@ -97,7 +109,7 @@ public class NotificationService {
     public List<Notification> getUserNotifications(Long userId) {
         return notificationRepository.findByUserIdOrderByCreateTimeDesc(userId);
     }
-    
+
     /**
      * 获取用户的未读通知
      * @param userId 用户ID
@@ -106,7 +118,7 @@ public class NotificationService {
     public List<Notification> getUnreadNotifications(Long userId) {
         return notificationRepository.findByUserIdAndIsReadFalseOrderByCreateTimeDesc(userId);
     }
-    
+
     /**
      * 获取用户未读通知数量
      * @param userId 用户ID
@@ -115,7 +127,7 @@ public class NotificationService {
     public long getUnreadNotificationCount(Long userId) {
         return notificationRepository.countByUserIdAndIsReadFalse(userId);
     }
-    
+
     /**
      * 标记通知为已读
      * @param notificationId 通知ID
@@ -129,7 +141,7 @@ public class NotificationService {
             if (notification.getUserId().equals(userId)) {
                 notification.setIsRead(true);
                 notificationRepository.save(notification);
-                
+
                 // 发送更新后的未读数量
                 long unreadCount = getUnreadNotificationCount(userId);
                 messagingTemplate.convertAndSendToUser(
@@ -137,20 +149,20 @@ public class NotificationService {
                     "/queue/unread-count",
                     unreadCount
                 );
-                
+
                 return true;
             }
         }
         return false;
     }
-    
+
     /**
      * 标记用户所有通知为已读
      * @param userId 用户ID
      */
     public void markAllAsRead(Long userId) {
         notificationRepository.markAllAsReadByUserId(userId);
-        
+
         // 发送更新后的未读数量（应该是0）
         messagingTemplate.convertAndSendToUser(
             userId.toString(),
@@ -158,7 +170,7 @@ public class NotificationService {
             0L
         );
     }
-    
+
     /**
      * 发送新书到达通知
      * @param bookTitle 图书标题
@@ -167,17 +179,17 @@ public class NotificationService {
     public void sendNewBookNotification(String bookTitle, Long bookId) {
         String title = "新书到达";
         String content = String.format("新书《%s》已到达图书馆，欢迎借阅！", bookTitle);
-        
+
         // 广播给所有用户（实际应用中可能需要根据用户偏好过滤）
         Notification notification = new Notification();
         notification.setTitle(title);
         notification.setContent(content);
         notification.setType(Notification.NotificationType.NEW_BOOK);
         notification.setBookId(bookId);
-        
+
         messagingTemplate.convertAndSend("/topic/new-books", notification);
     }
-    
+
     /**
      * 发送借阅到期提醒
      * @param userId 用户ID
@@ -188,11 +200,11 @@ public class NotificationService {
     public void sendReturnReminder(Long userId, String bookTitle, Long bookId, int daysLeft) {
         String title = "归还提醒";
         String content = String.format("您借阅的图书《%s》还有%d天到期，请及时归还。", bookTitle, daysLeft);
-        
-        createAndSendNotification(userId, title, content, 
+
+        createAndSendNotification(userId, title, content,
             Notification.NotificationType.RETURN_REMINDER, bookId);
     }
-    
+
     /**
      * 发送逾期提醒
      * @param userId 用户ID
@@ -203,8 +215,8 @@ public class NotificationService {
     public void sendOverdueReminder(Long userId, String bookTitle, Long bookId, int overdueDays) {
         String title = "逾期提醒";
         String content = String.format("您借阅的图书《%s》已逾期%d天，请尽快归还！", bookTitle, overdueDays);
-        
-        createAndSendNotification(userId, title, content, 
+
+        createAndSendNotification(userId, title, content,
             Notification.NotificationType.OVERDUE_REMINDER, bookId);
     }
 }
