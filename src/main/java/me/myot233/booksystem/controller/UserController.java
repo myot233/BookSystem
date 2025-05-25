@@ -1,17 +1,25 @@
 package me.myot233.booksystem.controller;
 
-import me.myot233.booksystem.entity.Book;
-import me.myot233.booksystem.entity.User;
-import me.myot233.booksystem.service.UserService;
+import java.util.List;
+import java.util.Optional;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
-import java.util.List;
-import java.util.Optional;
+import me.myot233.booksystem.entity.Book;
+import me.myot233.booksystem.entity.User;
+import me.myot233.booksystem.service.UserService;
 
 /**
  * 用户控制器
@@ -120,26 +128,24 @@ public class UserController {
     
     /**
      * 借阅图书
-     * @param userId 用户ID
      * @param bookId 图书ID
      * @return 更新后的用户
      */
-    @PostMapping("/{userId}/books/{bookId}")
-    public ResponseEntity<User> borrowBook(@PathVariable Long userId, @PathVariable Long bookId) {
-        Optional<User> user = userService.borrowBook(userId, bookId);
+    @PostMapping("/books/{bookId}")
+    public ResponseEntity<User> borrowBook(@PathVariable Long bookId) {
+        Optional<User> user = userService.borrowBook(bookId);
         return user.map(ResponseEntity::ok)
                 .orElse(ResponseEntity.badRequest().build());
     }
     
     /**
      * 归还图书
-     * @param userId 用户ID
      * @param bookId 图书ID
      * @return 更新后的用户
      */
-    @DeleteMapping("/{userId}/books/{bookId}")
-    public ResponseEntity<User> returnBook(@PathVariable Long userId, @PathVariable Long bookId) {
-        Optional<User> user = userService.returnBook(userId, bookId);
+    @DeleteMapping("/books/{bookId}")
+    public ResponseEntity<User> returnBook(@PathVariable Long bookId) {
+        Optional<User> user = userService.returnBook(bookId);
         return user.map(ResponseEntity::ok)
                 .orElse(ResponseEntity.badRequest().build());
     }

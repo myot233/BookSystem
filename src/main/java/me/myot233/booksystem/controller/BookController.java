@@ -3,6 +3,7 @@ package me.myot233.booksystem.controller;
 import me.myot233.booksystem.entity.Book;
 import me.myot233.booksystem.service.BookService;
 import me.myot233.booksystem.service.NotificationService;
+import me.myot233.booksystem.service.StatisticsService;
 import me.myot233.booksystem.vo.Response;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -21,6 +22,9 @@ public class BookController {
 
     private final BookService bookService;
     private final NotificationService notificationService;
+
+    @Autowired
+    private StatisticsService statisticsService;
 
     @Autowired
     public BookController(BookService bookService, NotificationService notificationService) {
@@ -110,6 +114,11 @@ public class BookController {
         // 发送新书到达通知
         notificationService.sendNewBookNotification(savedBook.getTitle(), savedBook.getId());
 
+        // 更新分类统计
+        if (savedBook.getCategory() != null) {
+            statisticsService.updateCategoryStatistics(savedBook.getCategory());
+        }
+
         return new ResponseEntity<>(savedBook, HttpStatus.CREATED);
     }
 
@@ -157,8 +166,22 @@ public class BookController {
     @PutMapping("/{id}/borrow")
     public ResponseEntity<Book> borrowBook(@PathVariable Long id) {
         Optional<Book> book = bookService.borrowBook(id);
-        return book.map(ResponseEntity::ok)
-                .orElse(ResponseEntity.badRequest().build());
+
+        if (book.isPresent()) {
+            // 更新统计信息
+            bookService.incrementTodayBorrowCount();
+            statisticsService.incrementWeeklyBorrowCount();
+            statisticsService.incrementMonthlyBorrowCount();
+
+            // 更新分类统计
+            if (book.get().getCategory() != null) {
+                statisticsService.updateCategoryStatistics(book.get().getCategory());
+            }
+
+            return ResponseEntity.ok(book.get());
+        }
+
+        return ResponseEntity.badRequest().build();
     }
 
     /**

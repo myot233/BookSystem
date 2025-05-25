@@ -1,10 +1,12 @@
 package me.myot233.booksystem.service;
 
-import me.myot233.booksystem.entity.Book;
-import me.myot233.booksystem.entity.User;
-import me.myot233.booksystem.repository.BookRepository;
-import me.myot233.booksystem.repository.UserRepository;
+import java.util.Date;
+import java.util.List;
+import java.util.Optional;
+
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
@@ -12,9 +14,10 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.Date;
-import java.util.List;
-import java.util.Optional;
+import me.myot233.booksystem.entity.Book;
+import me.myot233.booksystem.entity.User;
+import me.myot233.booksystem.repository.BookRepository;
+import me.myot233.booksystem.repository.UserRepository;
 
 /**
  * 用户服务类
@@ -113,13 +116,18 @@ public class UserService implements UserDetailsService {
     
     /**
      * 借阅图书
-     * @param userId 用户ID
      * @param bookId 图书ID
      * @return 更新后的用户
      */
     @Transactional
-    public Optional<User> borrowBook(Long userId, Long bookId) {
-        Optional<User> userOpt = userRepository.findById(userId);
+    public Optional<User> borrowBook(Long bookId) {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated()) {
+            return Optional.empty();
+        }
+        
+        String username = authentication.getName();
+        Optional<User> userOpt = userRepository.findByUsername(username);
         Optional<Book> bookOpt = bookRepository.findById(bookId);
         
         if (userOpt.isPresent() && bookOpt.isPresent()) {
@@ -143,13 +151,18 @@ public class UserService implements UserDetailsService {
     
     /**
      * 归还图书
-     * @param userId 用户ID
      * @param bookId 图书ID
      * @return 更新后的用户
      */
     @Transactional
-    public Optional<User> returnBook(Long userId, Long bookId) {
-        Optional<User> userOpt = userRepository.findById(userId);
+    public Optional<User> returnBook(Long bookId) {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated()) {
+            return Optional.empty();
+        }
+        
+        String username = authentication.getName();
+        Optional<User> userOpt = userRepository.findByUsername(username);
         Optional<Book> bookOpt = bookRepository.findById(bookId);
         
         if (userOpt.isPresent() && bookOpt.isPresent()) {
