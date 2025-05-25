@@ -41,7 +41,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             return;
         }
 
-
         final String requestTokenHeader = request.getHeader("Authorization");
 
         String username = null;
@@ -68,24 +67,18 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
                 // 如果token有效，设置Spring Security的认证
                 if (jwtUtil.validateToken(jwtToken, userDetails)) {
-                    // 使用User对象作为principal，这样@AuthenticationPrincipal User就能正常工作
                     UsernamePasswordAuthenticationToken authToken =
                         new UsernamePasswordAuthenticationToken(
                             userDetails, null, userDetails.getAuthorities());
                     authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                     SecurityContextHolder.getContext().setAuthentication(authToken);
-                    logger.info("认证成功，用户: " + username + ", 设置SecurityContext完成");
+                    logger.info("认证成功，用户: " + username);
                 } else {
                     logger.warn("JWT Token验证失败: " + username);
                 }
             } catch (Exception e) {
                 logger.error("加载用户详情失败: " + username + ", 错误: " + e.getMessage());
-                e.printStackTrace();
             }
-        } else if (username == null) {
-            logger.warn("从JWT Token中无法获取用户名");
-        } else {
-            logger.info("SecurityContext中已存在认证信息，跳过JWT认证");
         }
 
         filterChain.doFilter(request, response);
