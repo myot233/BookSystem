@@ -4,6 +4,7 @@ import lombok.Getter;
 import lombok.Setter;
 import me.myot233.booksystem.entity.User;
 import me.myot233.booksystem.service.UserService;
+import me.myot233.booksystem.util.JwtUtil;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -11,6 +12,7 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -25,16 +27,18 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/auth")
 public class AuthController {
-    
+
     private final AuthenticationManager authenticationManager;
     private final UserService userService;
-    
+    private final JwtUtil jwtUtil;
+
     @Autowired
-    public AuthController(AuthenticationManager authenticationManager, UserService userService) {
+    public AuthController(AuthenticationManager authenticationManager, UserService userService, JwtUtil jwtUtil) {
         this.authenticationManager = authenticationManager;
         this.userService = userService;
+        this.jwtUtil = jwtUtil;
     }
-    
+
     /**
      * 用户登录
      * @param loginRequest 登录请求
@@ -49,22 +53,33 @@ public class AuthController {
                             loginRequest.getPassword()
                     )
             );
-            
+
             SecurityContextHolder.getContext().setAuthentication(authentication);
-            
+
+            // 获取用户详情
+            UserDetails userDetails = (UserDetails) authentication.getPrincipal();
+            User user = userService.getUserByUsername(userDetails.getUsername()).orElse(null);
+
+            // 生成JWT token
+            String token = jwtUtil.generateTokenWithRole(userDetails, user.getRole());
+            String refreshToken = jwtUtil.generateRefreshToken(userDetails);
+
             // 更新最后登录时间
             userService.updateLastLoginTime(loginRequest.getUsername());
-            
+
             Map<String, Object> response = new HashMap<>();
             response.put("message", "登录成功");
             response.put("username", loginRequest.getUsername());
-            
+            response.put("token", token);
+            response.put("refreshToken", refreshToken);
+            response.put("role", user.getRole());
+
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("用户名或密码错误");
         }
     }
-    
+
     /**
      * 用户注册
      * @param user 用户
@@ -78,20 +93,20 @@ public class AuthController {
             response.put("message", "用户名已存在");
             return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
         }
-        
+
         // 设置默认角色
         user.setRole("ROLE_USER");
-        
+
         // 创建用户
         User createdUser = userService.createUser(user);
-        
+
         Map<String, Object> response = new HashMap<>();
         response.put("message", "注册成功");
         response.put("username", createdUser.getUsername());
-        
+
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
-    
+
     /**
      * 登录请求类
      */

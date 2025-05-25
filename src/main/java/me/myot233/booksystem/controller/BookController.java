@@ -2,6 +2,7 @@ package me.myot233.booksystem.controller;
 
 import me.myot233.booksystem.entity.Book;
 import me.myot233.booksystem.service.BookService;
+import me.myot233.booksystem.service.NotificationService;
 import me.myot233.booksystem.vo.Response;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -19,10 +20,12 @@ import java.util.Optional;
 public class BookController {
 
     private final BookService bookService;
+    private final NotificationService notificationService;
 
     @Autowired
-    public BookController(BookService bookService) {
+    public BookController(BookService bookService, NotificationService notificationService) {
         this.bookService = bookService;
+        this.notificationService = notificationService;
     }
 
     /**
@@ -102,7 +105,12 @@ public class BookController {
      */
     @PostMapping
     public ResponseEntity<Book> addBook(@RequestBody Book book) {
-        return new ResponseEntity<>(bookService.saveBook(book), HttpStatus.CREATED);
+        Book savedBook = bookService.saveBook(book);
+
+        // 发送新书到达通知
+        notificationService.sendNewBookNotification(savedBook.getTitle(), savedBook.getId());
+
+        return new ResponseEntity<>(savedBook, HttpStatus.CREATED);
     }
 
     /**
