@@ -34,6 +34,7 @@ public class UserService implements UserDetailsService {
         this.userRepository = userRepository;
         this.bookRepository = bookRepository;
         this.passwordEncoder = passwordEncoder;
+
     }
     
     /**

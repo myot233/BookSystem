@@ -4,64 +4,119 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.AuthenticationException;
+import me.myot233.booksystem.service.UserService;
+import me.myot233.booksystem.util.JwtUtil;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
-import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 
 /**
- * JWT认证过滤器。
- * 负责从请求头中提取JWT Token，创建JwtAuthenticationToken，并将其提交给AuthenticationManager进行认证。
+ * JWT认证过滤器
  */
+@Component
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
-    private final AuthenticationManager authenticationManager;
+    @Autowired
+    private JwtUtil jwtUtil;
 
-    // 构造函数注入AuthenticationManager
-    public JwtAuthenticationFilter(AuthenticationManager authenticationManager) {
-        this.authenticationManager = authenticationManager;
-    }
+    @Autowired
+    private UserService userService;
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response,
-                                    FilterChain filterChain) throws ServletException, IOException {
+                                  FilterChain filterChain) throws ServletException, IOException {
+
+        String requestPath = request.getRequestURI();
+
+        // 跳过不需要JWT认证的路径
+        if (shouldSkipFilter(requestPath)) {
+            logger.info("跳过JWT过滤器，路径: " + requestPath);
+            filterChain.doFilter(request, response);
+            return;
+        }
 
         final String requestTokenHeader = request.getHeader("Authorization");
+
+        String username = null;
         String jwtToken = null;
 
         // JWT Token格式为 "Bearer token"
         if (requestTokenHeader != null && requestTokenHeader.startsWith("Bearer ")) {
             jwtToken = requestTokenHeader.substring(7);
+            try {
+                username = jwtUtil.getUsernameFromToken(jwtToken);
+                logger.info("从JWT Token中获取到用户名: " + username);
+            } catch (Exception e) {
+                logger.warn("无法获取JWT Token中的用户名: " + e.getMessage());
+            }
+        } else {
+            logger.warn("请求头中没有有效的Authorization Bearer token: " + requestTokenHeader);
         }
 
-        // 如果存在JWT Token，并且当前SecurityContext中没有认证信息
-        if (StringUtils.hasText(jwtToken) && SecurityContextHolder.getContext().getAuthentication() == null) {
+        // 验证token
+        if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
             try {
-                // 1. 创建一个未认证的JwtAuthenticationToken
-                JwtAuthenticationToken authenticationRequest = new JwtAuthenticationToken(jwtToken);
+                UserDetails userDetails = userService.loadUserByUsername(username);
+                logger.info("加载用户详情成功: " + username + ", 角色: " + userDetails.getAuthorities());
 
-                // 2. 将认证请求提交给AuthenticationManager
-                // AuthenticationManager会找到JwtAuthenticationProvider来处理这个请求
-                Authentication authenticationResult = authenticationManager.authenticate(authenticationRequest);
-
-                // 3. 认证成功，将已认证的Authentication对象设置到SecurityContext中
-                SecurityContextHolder.getContext().setAuthentication(authenticationResult);
-
-            } catch (AuthenticationException e) {
-                // 认证失败，清除SecurityContext，并发送401 Unauthorized响应
-                SecurityContextHolder.clearContext();
-                response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-                response.getWriter().write("Authentication Failed: " + e.getMessage());
-                return; // 认证失败，不再继续过滤器链
+                // 如果token有效，设置Spring Security的认证
+                if (jwtUtil.validateToken(jwtToken, userDetails)) {
+                    UsernamePasswordAuthenticationToken authToken =
+                        new UsernamePasswordAuthenticationToken(
+                            userDetails, null, userDetails.getAuthorities());
+                    authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                    SecurityContextHolder.getContext().setAuthentication(authToken);
+                    logger.info("认证成功，用户: " + username);
+                } else {
+                    logger.warn("JWT Token验证失败: " + username);
+                }
+            } catch (Exception e) {
+                logger.error("加载用户详情失败: " + username + ", 错误: " + e.getMessage());
             }
         }
 
-        // 继续执行过滤器链
         filterChain.doFilter(request, response);
+    }
+
+    /**
+     * 判断是否应该跳过JWT过滤器
+     * @param requestPath 请求路径
+     * @return 是否跳过
+     */
+    private boolean shouldSkipFilter(String requestPath) {
+        // 允许的路径列表
+        String[] allowedPaths = {
+            "/",
+            "/health",
+            "/api/auth/login",
+            "/api/auth/register"
+        };
+
+        // 检查精确匹配
+        for (String path : allowedPaths) {
+            if (requestPath.equals(path)) {
+                return true;
+            }
+        }
+
+        // 检查前缀匹配
+        String[] allowedPrefixes = {
+            "/api/auth/",
+            "/ws/"
+        };
+
+        for (String prefix : allowedPrefixes) {
+            if (requestPath.startsWith(prefix)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }
