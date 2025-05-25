@@ -80,27 +80,27 @@ public class SecurityConfig {
             .csrf(AbstractHttpConfigurer::disable) // 禁用CSRF保护
             .authorizeHttpRequests(authorize -> authorize
                 // 允许系统信息和健康检查接口
-                .requestMatchers("/", "/health").permitAll()
-                // 允许认证相关请求
-                .requestMatchers("/api/auth/**").permitAll()
-                // 允许WebSocket连接
-                .requestMatchers("/ws/**").permitAll()
-                // 允许图书相关请求（临时开放）
-                .requestMatchers("/api/books/**").permitAll()
-                // 允许用户注册
-                .requestMatchers(HttpMethod.POST, "/api/users").permitAll()
-                // 当前用户信息需要认证
-                .requestMatchers("/api/users/me").authenticated()
-                // 通知相关接口需要认证
-                .requestMatchers("/api/notifications/**").authenticated()
-                // 用户管理需要管理员权限
-                .requestMatchers("/api/users/**").hasRole("ADMIN")
-                // /admin/**路径，需要ADMIN角色
-                .requestMatchers("/admin/**").hasRole("ADMIN")
-                // /user/**路径，需要USER或ADMIN角色
-                .requestMatchers("/user/**").hasAnyRole("USER", "ADMIN")
+//                .requestMatchers("/", "/health").permitAll()
+//                // 允许认证相关请求
+//                .requestMatchers("/api/auth/**").permitAll()
+//                // 允许WebSocket连接
+//                .requestMatchers("/ws/**").permitAll()
+//                // 允许图书相关请求（临时开放）
+//                .requestMatchers("/api/books/**").permitAll()
+//                // 允许用户注册
+//                .requestMatchers(HttpMethod.POST, "/api/users").permitAll()
+//                // 当前用户信息需要认证
+//                .requestMatchers("/api/users/me").authenticated()
+//                // 通知相关接口需要认证
+//                .requestMatchers("/api/notifications/**").authenticated()
+//                // 用户管理需要管理员权限
+//                .requestMatchers("/api/users/**").hasRole("ADMIN")
+//                // /admin/**路径，需要ADMIN角色
+//                .requestMatchers("/admin/**").hasRole("ADMIN")
+//                // /user/**路径，需要USER或ADMIN角色
+//                .requestMatchers("/user/**").hasAnyRole("USER", "ADMIN")
                 // 任何其他未匹配的请求，需要认证
-                .anyRequest().authenticated()
+                .anyRequest().permitAll()
             )
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)) // 会话管理策略为无状态
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class); // 添加JWT过滤器
