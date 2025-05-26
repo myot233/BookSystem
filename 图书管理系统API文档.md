@@ -29,7 +29,7 @@ Content-Type: application/json
   "service": "图书管理系统 API",
   "version": "v1.0.0",
   "status": "running",
-  "features": ["JWT认证", "WebSocket实时通知", "图书管理", "用户管理"]
+  "features": ["JWT认证", "WebSocket实时通知", "图书管理", "用户管理", "Node.js数据分析"]
 }
 ```
 
@@ -452,6 +452,117 @@ Authorization: Bearer <admin-jwt-token>
 }
 ```
 
+### 9. 数据分析API
+
+#### 获取今日统计 🔓
+```bash
+GET /api/analytics/today
+Content-Type: application/json
+
+# 响应示例
+{
+  "date": "2025-01-27",
+  "borrows": 15,
+  "returns": 8,
+  "onlineUsers": 5,
+  "dailyLoginUsers": 12,
+  "netBorrows": 7
+}
+```
+
+#### 获取热门图书排行 🔓
+```bash
+GET /api/analytics/hot-books?limit=10
+Content-Type: application/json
+
+# 响应示例
+{
+  "total": 5,
+  "books": [
+    {
+      "bookId": "1",
+      "borrowCount": 25
+    },
+    {
+      "bookId": "3",
+      "borrowCount": 18
+    },
+    {
+      "bookId": "2",
+      "borrowCount": 12
+    }
+  ]
+}
+```
+
+#### 获取总体统计 👑
+```bash
+GET /api/analytics/overview
+Authorization: Bearer <admin-jwt-token>
+
+# 响应示例
+{
+  "totalBorrows": 156,
+  "totalReturns": 134,
+  "currentOnlineUsers": 5,
+  "trackedBooks": 12,
+  "systemUptime": 3600,
+  "lastUpdated": "2025-01-27T10:30:00.000Z"
+}
+```
+
+#### 获取最近几天统计 👑
+```bash
+GET /api/analytics/recent-days?days=7
+Authorization: Bearer <admin-jwt-token>
+
+# 响应示例
+{
+  "period": "最近7天",
+  "data": [
+    {
+      "date": "2025-01-21",
+      "borrows": 12,
+      "returns": 8,
+      "loginUsers": 15
+    },
+    {
+      "date": "2025-01-22",
+      "borrows": 18,
+      "returns": 12,
+      "loginUsers": 22
+    },
+    {
+      "date": "2025-01-23",
+      "borrows": 15,
+      "returns": 10,
+      "loginUsers": 18
+    }
+  ]
+}
+```
+
+#### 获取分析服务状态 👑
+```bash
+GET /api/analytics/service-status
+Authorization: Bearer <admin-jwt-token>
+
+# 响应示例
+{
+  "service": "Book Analytics Service",
+  "version": "1.0.0",
+  "status": "running",
+  "redis": "connected",
+  "uptime": 3600,
+  "memory": {
+    "rss": 45678592,
+    "heapTotal": 20971520,
+    "heapUsed": 15234816
+  },
+  "timestamp": "2025-01-27T10:30:00.000Z"
+}
+```
+
 ---
 
 ## 🧪 测试账户
@@ -533,8 +644,70 @@ Authorization: Bearer <admin-token>
 }
 ```
 
+### 数据分析使用流程
+```bash
+# 1. 查看今日统计（无需认证）
+GET /api/analytics/today
+
+# 2. 查看热门图书排行（无需认证）
+GET /api/analytics/hot-books?limit=5
+
+# 3. 管理员查看总体统计
+GET /api/analytics/overview
+Authorization: Bearer <admin-token>
+
+# 4. 管理员查看最近7天统计
+GET /api/analytics/recent-days?days=7
+Authorization: Bearer <admin-token>
+
+# 5. 管理员检查分析服务状态
+GET /api/analytics/service-status
+Authorization: Bearer <admin-token>
+```
+
+---
+
+## 🚀 Node.js数据分析服务
+
+### 服务说明
+本系统集成了独立的Node.js数据分析服务，提供实时数据收集和统计分析功能。
+
+### 主要功能
+- **实时数据收集**: 自动收集用户借阅、归还、登录等行为数据
+- **统计分析**: 提供今日统计、热门图书排行、用户活跃度等分析
+- **自动清理**: 定时清理过期数据，保持系统性能
+- **服务监控**: 提供服务状态监控和健康检查
+
+### 技术架构
+```
+Spring Boot (8080) ←→ Node.js Analytics (3001)
+       ↓                         ↓
+     MySQL                   Redis (共享)
+```
+
+### 数据流程
+1. 用户在Spring Boot系统中进行借阅、归还、登录等操作
+2. Spring Boot自动发送事件数据到Node.js分析服务
+3. Node.js服务实时处理数据并存储到Redis
+4. 前端可通过API获取实时统计数据
+
+### 启动分析服务
+```bash
+# 进入Node.js服务目录
+cd node-analytics
+
+# 安装依赖
+npm install
+
+# 启动服务
+npm start
+```
+
+分析服务将在 `http://localhost:3001` 启动
+
 ---
 
 *文档更新时间: 2025年1月*
 *API版本: v1.0.0*
 *服务器地址: http://localhost:8080*
+*分析服务地址: http://localhost:3001*

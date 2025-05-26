@@ -4,6 +4,7 @@ import lombok.Getter;
 import lombok.Setter;
 import me.myot233.booksystem.entity.User;
 import me.myot233.booksystem.service.UserService;
+import me.myot233.booksystem.service.AnalyticsService;
 import me.myot233.booksystem.util.JwtUtil;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -30,12 +31,15 @@ public class AuthController {
 
     private final AuthenticationManager authenticationManager;
     private final UserService userService;
+    private final AnalyticsService analyticsService;
     private final JwtUtil jwtUtil;
 
     @Autowired
-    public AuthController(AuthenticationManager authenticationManager, UserService userService, JwtUtil jwtUtil) {
+    public AuthController(AuthenticationManager authenticationManager, UserService userService,
+                         AnalyticsService analyticsService, JwtUtil jwtUtil) {
         this.authenticationManager = authenticationManager;
         this.userService = userService;
+        this.analyticsService = analyticsService;
         this.jwtUtil = jwtUtil;
     }
 
@@ -66,6 +70,9 @@ public class AuthController {
 
             // 更新最后登录时间
             userService.updateLastLoginTime(loginRequest.getUsername());
+
+            // 发送登录事件到分析服务
+            analyticsService.sendLoginEvent(user.getId(), user.getUsername());
 
             Map<String, Object> response = new HashMap<>();
             response.put("message", "登录成功");

@@ -22,7 +22,7 @@ public class HomeController {
         info.put("service", "图书管理系统 API");
         info.put("version", "v1.0.0");
         info.put("status", "running");
-        info.put("features", new String[]{"JWT认证", "WebSocket实时通知", "图书管理", "用户管理"});
+        info.put("features", new String[]{"JWT认证", "WebSocket实时通知", "图书管理", "用户管理", "Node.js数据分析"});
 
         Map<String, String> endpoints = new HashMap<>();
         endpoints.put("GET /api/books", "获取图书列表");
@@ -30,6 +30,8 @@ public class HomeController {
         endpoints.put("POST /api/auth/register", "用户注册");
         endpoints.put("GET /api/users/me", "获取当前用户信息");
         endpoints.put("GET /api/notifications", "获取通知列表");
+        endpoints.put("GET /api/analytics/today", "获取今日统计");
+        endpoints.put("GET /api/analytics/hot-books", "获取热门图书");
         endpoints.put("WebSocket /ws", "实时通知连接");
         info.put("endpoints", endpoints);
 

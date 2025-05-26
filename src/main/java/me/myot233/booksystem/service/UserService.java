@@ -24,19 +24,21 @@ import me.myot233.booksystem.repository.UserRepository;
  */
 @Service
 public class UserService implements UserDetailsService {
-    
+
     private final UserRepository userRepository;
     private final BookRepository bookRepository;
     private final PasswordEncoder passwordEncoder;
-    
+    private final AnalyticsService analyticsService;
+
     @Autowired
-    public UserService(UserRepository userRepository, BookRepository bookRepository, PasswordEncoder passwordEncoder) {
+    public UserService(UserRepository userRepository, BookRepository bookRepository,
+                      PasswordEncoder passwordEncoder, AnalyticsService analyticsService) {
         this.userRepository = userRepository;
         this.bookRepository = bookRepository;
         this.passwordEncoder = passwordEncoder;
-
+        this.analyticsService = analyticsService;
     }
-    
+
     /**
      * 根据用户名加载用户
      * @param username 用户名
@@ -48,7 +50,7 @@ public class UserService implements UserDetailsService {
         return userRepository.findByUsername(username)
                 .orElseThrow(() -> new UsernameNotFoundException("用户名不存在: " + username));
     }
-    
+
     /**
      * 获取所有用户
      * @return 用户列表
@@ -56,7 +58,7 @@ public class UserService implements UserDetailsService {
     public List<User> getAllUsers() {
         return userRepository.findAll();
     }
-    
+
     /**
      * 根据ID获取用户
      * @param id 用户ID
@@ -65,7 +67,7 @@ public class UserService implements UserDetailsService {
     public Optional<User> getUserById(Long id) {
         return userRepository.findById(id);
     }
-    
+
     /**
      * 根据用户名获取用户
      * @param username 用户名
@@ -74,7 +76,7 @@ public class UserService implements UserDetailsService {
     public Optional<User> getUserByUsername(String username) {
         return userRepository.findByUsername(username);
     }
-    
+
     /**
      * 创建用户
      * @param user 用户
@@ -88,7 +90,7 @@ public class UserService implements UserDetailsService {
         user.setCreateTime(new Date());
         return userRepository.save(user);
     }
-    
+
     /**
      * 更新用户
      * @param user 用户
@@ -105,7 +107,7 @@ public class UserService implements UserDetailsService {
                     return userRepository.save(user);
                 });
     }
-    
+
     /**
      * 删除用户
      * @param id 用户ID
@@ -114,7 +116,7 @@ public class UserService implements UserDetailsService {
     public void deleteUser(Long id) {
         userRepository.deleteById(id);
     }
-    
+
     /**
      * 借阅图书
      * @param bookId 图书ID
@@ -126,30 +128,35 @@ public class UserService implements UserDetailsService {
         if (authentication == null || !authentication.isAuthenticated()) {
             return Optional.empty();
         }
-        
+
         String username = authentication.getName();
         Optional<User> userOpt = userRepository.findByUsername(username);
         Optional<Book> bookOpt = bookRepository.findById(bookId);
-        
+
         if (userOpt.isPresent() && bookOpt.isPresent()) {
             User user = userOpt.get();
             Book book = bookOpt.get();
-            
+
             // 检查图书是否可借
             if (book.getAvailable() > 0) {
                 // 更新图书借阅信息
                 book.setBorrowed(book.getBorrowed() + 1);
                 bookRepository.save(book);
-                
+
                 // 更新用户借阅信息
                 user.getBorrowedBooks().add(book);
-                return Optional.of(userRepository.save(user));
+                User savedUser = userRepository.save(user);
+
+                // 发送借阅事件到分析服务
+                analyticsService.sendBorrowEvent(bookId, user.getId());
+
+                return Optional.of(savedUser);
             }
         }
-        
+
         return Optional.empty();
     }
-    
+
     /**
      * 归还图书
      * @param bookId 图书ID
@@ -161,15 +168,15 @@ public class UserService implements UserDetailsService {
         if (authentication == null || !authentication.isAuthenticated()) {
             return Optional.empty();
         }
-        
+
         String username = authentication.getName();
         Optional<User> userOpt = userRepository.findByUsername(username);
         Optional<Book> bookOpt = bookRepository.findById(bookId);
-        
+
         if (userOpt.isPresent() && bookOpt.isPresent()) {
             User user = userOpt.get();
             Book book = bookOpt.get();
-            
+
             // 检查用户是否借阅了该图书
             if (user.getBorrowedBooks().removeIf(b -> b.getId().equals(bookId))) {
                 // 更新图书借阅信息
@@ -177,14 +184,19 @@ public class UserService implements UserDetailsService {
                     book.setBorrowed(book.getBorrowed() - 1);
                     bookRepository.save(book);
                 }
-                
-                return Optional.of(userRepository.save(user));
+
+                User savedUser = userRepository.save(user);
+
+                // 发送归还事件到分析服务
+                analyticsService.sendReturnEvent(bookId, user.getId());
+
+                return Optional.of(savedUser);
             }
         }
-        
+
         return Optional.empty();
     }
-    
+
     /**
      * 获取用户借阅的图书
      * @param userId 用户ID
@@ -195,7 +207,7 @@ public class UserService implements UserDetailsService {
                 .map(User::getBorrowedBooks)
                 .orElse(List.of());
     }
-    
+
     /**
      * 更新最后登录时间
      * @param username 用户名
