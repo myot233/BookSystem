@@ -31,6 +31,9 @@ public class BookService {
     @Autowired
     private RedisTemplate<String, Object> redisTemplate;
 
+    @Autowired
+    private StatisticsService statisticsService;
+
     // Redis键前缀
     private static final String BOOK_CACHE_PREFIX = "book:";
     private static final String BOOK_LIST_CACHE_PREFIX = "book_list:";
@@ -152,6 +155,21 @@ public class BookService {
                         // 更新热门图书统计
                         updateBookPopularity(id);
 
+                        // 增加今日借阅统计
+                        incrementTodayBorrowCount();
+
+                        // 增加每日借阅统计（用于7天统计）
+                        statisticsService.incrementDailyBorrowCount();
+
+                        // 增加周统计和月统计
+                        statisticsService.incrementWeeklyBorrowCount();
+                        statisticsService.incrementMonthlyBorrowCount();
+
+                        // 更新图书分类统计
+                        if (book.getCategory() != null) {
+                            statisticsService.updateCategoryStatistics(book.getCategory());
+                        }
+
                         // 更新缓存
                         redisUtil.set(BOOK_CACHE_PREFIX + id, savedBook, 3600);
 
@@ -188,35 +206,6 @@ public class BookService {
             }
         }
         return Optional.empty();
-    }
-
-    /**
-     * 获取热门图书排行榜
-     * @param limit 返回数量限制
-     * @return 热门图书列表
-     */
-    public List<Book> getHotBooks(int limit) {
-        String cacheKey = HOT_BOOKS_KEY + ":" + limit;
-        Object cached = redisUtil.get(cacheKey);
-
-        if (cached != null) {
-            return (List<Book>) cached;
-        }
-
-        // 从Redis有序集合中获取热门图书ID
-        Set<Object> hotBookIds = redisTemplate.opsForZSet().reverseRange(HOT_BOOKS_KEY, 0, limit - 1);
-        List<Book> hotBooks = new java.util.ArrayList<>();
-
-        if (hotBookIds != null) {
-            for (Object bookId : hotBookIds) {
-                Optional<Book> book = getBookById(Long.valueOf(bookId.toString()));
-                book.ifPresent(hotBooks::add);
-            }
-        }
-
-        // 缓存结果30分钟
-        redisUtil.set(cacheKey, hotBooks, 1800);
-        return hotBooks;
     }
 
     /**
@@ -261,31 +250,12 @@ public class BookService {
     }
 
     /**
-     * 获取今日借阅统计
-     * @return 今日借阅总数
-     */
-    public Long getTodayBorrowCount() {
-        String todayKey = BOOK_STATS_PREFIX + "today_total:" + java.time.LocalDate.now();
-        Object count = redisUtil.get(todayKey);
-        return count != null ? Long.valueOf(count.toString()) : 0L;
-    }
-
-    /**
      * 增加今日借阅统计
      */
     public void incrementTodayBorrowCount() {
         String todayKey = BOOK_STATS_PREFIX + "today_total:" + java.time.LocalDate.now();
         redisUtil.incr(todayKey, 1);
         redisUtil.expire(todayKey, 86400); // 24小时过期
-    }
-
-    /**
-     * 获取在线用户数量
-     * @return 在线用户数
-     */
-    public Long getOnlineUserCount() {
-        String onlineUsersKey = "online_users";
-        return redisUtil.sGetSetSize(onlineUsersKey);
     }
 
     /**

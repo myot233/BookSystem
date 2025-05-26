@@ -452,115 +452,166 @@ Authorization: Bearer <admin-jwt-token>
 }
 ```
 
-### 9. 数据分析API
-
-#### 获取今日统计 🔓
-```bash
-GET /api/analytics/today
-Content-Type: application/json
-
-# 响应示例
-{
-  "date": "2025-01-27",
-  "borrows": 15,
-  "returns": 8,
-  "onlineUsers": 5,
-  "dailyLoginUsers": 12,
-  "netBorrows": 7
-}
-```
+### 9. 统计数据API
 
 #### 获取热门图书排行 🔓
 ```bash
-GET /api/analytics/hot-books?limit=10
+GET /api/statistics/hot-books?limit=10
+Content-Type: application/json
+
+# 响应示例
+[
+  {
+    "id": 1,
+    "title": "三体",
+    "author": "刘慈欣",
+    "category": "科幻",
+    "publisher": "重庆出版社",
+    "isbn": "9787536692930",
+    "stock": 10,
+    "borrowed": 8,
+    "available": 2
+  },
+  {
+    "id": 3,
+    "title": "算法导论",
+    "author": "Thomas H. Cormen",
+    "category": "计算机",
+    "publisher": "机械工业出版社",
+    "isbn": "9787111407010",
+    "stock": 5,
+    "borrowed": 3,
+    "available": 2
+  }
+]
+```
+
+#### 获取今日借阅统计 🔓
+```bash
+GET /api/statistics/today-borrows
+Content-Type: application/json
+
+# 响应示例
+15
+```
+
+#### 获取在线用户数量 🔓
+```bash
+GET /api/statistics/online-users
+Content-Type: application/json
+
+# 响应示例
+8
+```
+
+#### 获取图书分类统计 🔓
+```bash
+GET /api/statistics/categories
 Content-Type: application/json
 
 # 响应示例
 {
-  "total": 5,
-  "books": [
+  "科幻": 25,
+  "计算机": 18,
+  "文学": 12,
+  "历史": 8
+}
+```
+
+#### 获取系统综合统计 👑
+```bash
+GET /api/statistics/system
+Authorization: Bearer <admin-jwt-token>
+
+# 响应示例
+{
+  "todayBorrowCount": 15,
+  "onlineUserCount": 8,
+  "hotBooks": [
     {
-      "bookId": "1",
-      "borrowCount": 25
-    },
-    {
-      "bookId": "3",
-      "borrowCount": 18
-    },
-    {
-      "bookId": "2",
-      "borrowCount": 12
+      "id": 1,
+      "title": "三体",
+      "author": "刘慈欣"
     }
-  ]
+  ],
+  "weeklyBorrowCount": 89,
+  "monthlyBorrowCount": 356
 }
 ```
 
-#### 获取总体统计 👑
+#### 获取最近7天借阅趋势 👑
 ```bash
-GET /api/analytics/overview
+GET /api/statistics/recent-seven-days
 Authorization: Bearer <admin-jwt-token>
 
 # 响应示例
 {
-  "totalBorrows": 156,
-  "totalReturns": 134,
-  "currentOnlineUsers": 5,
-  "trackedBooks": 12,
-  "systemUptime": 3600,
-  "lastUpdated": "2025-01-27T10:30:00.000Z"
+  "2025-01-21": 12,
+  "2025-01-22": 18,
+  "2025-01-23": 15,
+  "2025-01-24": 22,
+  "2025-01-25": 19,
+  "2025-01-26": 16,
+  "2025-01-27": 15
 }
 ```
 
-#### 获取最近几天统计 👑
+#### 获取活跃用户排行 👑
 ```bash
-GET /api/analytics/recent-days?days=7
+GET /api/statistics/active-users
 Authorization: Bearer <admin-jwt-token>
 
 # 响应示例
-{
-  "period": "最近7天",
-  "data": [
-    {
-      "date": "2025-01-21",
-      "borrows": 12,
-      "returns": 8,
-      "loginUsers": 15
-    },
-    {
-      "date": "2025-01-22",
-      "borrows": 18,
-      "returns": 12,
-      "loginUsers": 22
-    },
-    {
-      "date": "2025-01-23",
-      "borrows": 15,
-      "returns": 10,
-      "loginUsers": 18
-    }
-  ]
-}
-```
-
-#### 获取分析服务状态 👑
-```bash
-GET /api/analytics/service-status
-Authorization: Bearer <admin-jwt-token>
-
-# 响应示例
-{
-  "service": "Book Analytics Service",
-  "version": "1.0.0",
-  "status": "running",
-  "redis": "connected",
-  "uptime": 3600,
-  "memory": {
-    "rss": 45678592,
-    "heapTotal": 20971520,
-    "heapUsed": 15234816
+[
+  {
+    "userId": "2",
+    "activityScore": 25.5,
+    "username": "user1"
   },
-  "timestamp": "2025-01-27T10:30:00.000Z"
+  {
+    "userId": "3",
+    "activityScore": 18.2,
+    "username": "user2"
+  }
+]
+```
+
+### 10. Redis管理API
+
+#### 获取Redis连接状态 👑
+```bash
+GET /api/redis/info
+Authorization: Bearer <admin-jwt-token>
+
+# 响应示例
+{
+  "status": "connected",
+  "message": "Redis连接正常",
+  "dbSize": 1234
 }
+```
+
+#### 获取缓存统计信息 👑
+```bash
+GET /api/redis/stats
+Authorization: Bearer <admin-jwt-token>
+
+# 响应示例
+{
+  "totalKeys": 1234,
+  "bookCacheCount": 500,
+  "statsCacheCount": 100,
+  "hotBooksCacheCount": 10
+}
+```
+
+#### 清除所有缓存 👑
+```bash
+DELETE /api/redis/flush-all
+Authorization: Bearer <admin-jwt-token>
+
+# 响应示例
+"所有缓存已清除"
 ```
 
 ---
@@ -644,24 +695,45 @@ Authorization: Bearer <admin-token>
 }
 ```
 
-### 数据分析使用流程
+### 统计数据使用流程
 ```bash
-# 1. 查看今日统计（无需认证）
-GET /api/analytics/today
+# 1. 查看热门图书排行（无需认证）
+GET /api/statistics/hot-books?limit=5
 
-# 2. 查看热门图书排行（无需认证）
-GET /api/analytics/hot-books?limit=5
+# 2. 查看今日借阅统计（无需认证）
+GET /api/statistics/today-borrows
 
-# 3. 管理员查看总体统计
-GET /api/analytics/overview
+# 3. 查看在线用户数（无需认证）
+GET /api/statistics/online-users
+
+# 4. 查看图书分类统计（无需认证）
+GET /api/statistics/categories
+
+# 5. 管理员查看系统综合统计
+GET /api/statistics/system
 Authorization: Bearer <admin-token>
 
-# 4. 管理员查看最近7天统计
-GET /api/analytics/recent-days?days=7
+# 6. 管理员查看最近7天趋势
+GET /api/statistics/recent-seven-days
 Authorization: Bearer <admin-token>
 
-# 5. 管理员检查分析服务状态
-GET /api/analytics/service-status
+# 7. 管理员查看活跃用户排行
+GET /api/statistics/active-users
+Authorization: Bearer <admin-token>
+```
+
+### Redis管理使用流程
+```bash
+# 1. 管理员检查Redis连接状态
+GET /api/redis/info
+Authorization: Bearer <admin-token>
+
+# 2. 管理员查看缓存统计
+GET /api/redis/stats
+Authorization: Bearer <admin-token>
+
+# 3. 管理员清除所有缓存（谨慎操作）
+DELETE /api/redis/flush-all
 Authorization: Bearer <admin-token>
 ```
 

@@ -1,5 +1,6 @@
 package me.myot233.booksystem.service;
 
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Optional;
@@ -29,14 +30,19 @@ public class UserService implements UserDetailsService {
     private final BookRepository bookRepository;
     private final PasswordEncoder passwordEncoder;
     private final AnalyticsService analyticsService;
+    private final BookService bookService;
+    private final StatisticsService statisticsService;
 
     @Autowired
     public UserService(UserRepository userRepository, BookRepository bookRepository,
-                      PasswordEncoder passwordEncoder, AnalyticsService analyticsService) {
+                      PasswordEncoder passwordEncoder, AnalyticsService analyticsService,
+                      BookService bookService, StatisticsService statisticsService) {
         this.userRepository = userRepository;
         this.bookRepository = bookRepository;
         this.passwordEncoder = passwordEncoder;
         this.analyticsService = analyticsService;
+        this.bookService = bookService;
+        this.statisticsService = statisticsService;
     }
 
     /**
@@ -131,17 +137,15 @@ public class UserService implements UserDetailsService {
 
         String username = authentication.getName();
         Optional<User> userOpt = userRepository.findByUsername(username);
-        Optional<Book> bookOpt = bookRepository.findById(bookId);
 
-        if (userOpt.isPresent() && bookOpt.isPresent()) {
+        if (userOpt.isPresent()) {
             User user = userOpt.get();
-            Book book = bookOpt.get();
 
-            // 检查图书是否可借
-            if (book.getAvailable() > 0) {
-                // 更新图书借阅信息
-                book.setBorrowed(book.getBorrowed() + 1);
-                bookRepository.save(book);
+            // 使用BookService处理图书借阅逻辑，避免并发冲突
+            Optional<Book> borrowedBookOpt = bookService.borrowBook(bookId);
+
+            if (borrowedBookOpt.isPresent()) {
+                Book book = borrowedBookOpt.get();
 
                 // 更新用户借阅信息
                 user.getBorrowedBooks().add(book);
@@ -149,6 +153,9 @@ public class UserService implements UserDetailsService {
 
                 // 发送借阅事件到分析服务
                 analyticsService.sendBorrowEvent(bookId, user.getId());
+
+                // 更新用户活跃度
+                statisticsService.updateUserActivity(user.getId());
 
                 return Optional.of(savedUser);
             }
@@ -171,24 +178,91 @@ public class UserService implements UserDetailsService {
 
         String username = authentication.getName();
         Optional<User> userOpt = userRepository.findByUsername(username);
-        Optional<Book> bookOpt = bookRepository.findById(bookId);
 
-        if (userOpt.isPresent() && bookOpt.isPresent()) {
+        if (userOpt.isPresent()) {
             User user = userOpt.get();
-            Book book = bookOpt.get();
 
             // 检查用户是否借阅了该图书
             if (user.getBorrowedBooks().removeIf(b -> b.getId().equals(bookId))) {
-                // 更新图书借阅信息
-                if (book.getBorrowed() > 0) {
-                    book.setBorrowed(book.getBorrowed() - 1);
-                    bookRepository.save(book);
-                }
+                // 使用BookService处理图书归还逻辑，避免并发冲突
+                bookService.returnBook(bookId);
 
                 User savedUser = userRepository.save(user);
 
                 // 发送归还事件到分析服务
                 analyticsService.sendReturnEvent(bookId, user.getId());
+
+                // 更新用户活跃度
+                statisticsService.updateUserActivity(user.getId());
+
+                return Optional.of(savedUser);
+            }
+        }
+
+        return Optional.empty();
+    }
+
+    /**
+     * 管理员帮指定用户借阅图书
+     * @param userId 用户ID
+     * @param bookId 图书ID
+     * @return 更新后的用户
+     */
+    @Transactional
+    public Optional<User> borrowBookForUser(Long userId, Long bookId) {
+        Optional<User> userOpt = userRepository.findById(userId);
+
+        if (userOpt.isPresent()) {
+            User user = userOpt.get();
+
+            // 使用BookService处理图书借阅逻辑，避免并发冲突
+            Optional<Book> borrowedBookOpt = bookService.borrowBook(bookId);
+
+            if (borrowedBookOpt.isPresent()) {
+                Book book = borrowedBookOpt.get();
+
+                // 更新用户借阅信息
+                user.getBorrowedBooks().add(book);
+                User savedUser = userRepository.save(user);
+
+                // 发送借阅事件到分析服务
+                analyticsService.sendBorrowEvent(bookId, user.getId());
+
+                // 更新用户活跃度
+                statisticsService.updateUserActivity(user.getId());
+
+                return Optional.of(savedUser);
+            }
+        }
+
+        return Optional.empty();
+    }
+
+    /**
+     * 管理员帮指定用户归还图书
+     * @param userId 用户ID
+     * @param bookId 图书ID
+     * @return 更新后的用户
+     */
+    @Transactional
+    public Optional<User> returnBookForUser(Long userId, Long bookId) {
+        Optional<User> userOpt = userRepository.findById(userId);
+
+        if (userOpt.isPresent()) {
+            User user = userOpt.get();
+
+            // 检查用户是否借阅了该图书
+            if (user.getBorrowedBooks().removeIf(b -> b.getId().equals(bookId))) {
+                // 使用BookService处理图书归还逻辑，避免并发冲突
+                bookService.returnBook(bookId);
+
+                User savedUser = userRepository.save(user);
+
+                // 发送归还事件到分析服务
+                analyticsService.sendReturnEvent(bookId, user.getId());
+
+                // 更新用户活跃度
+                statisticsService.updateUserActivity(user.getId());
 
                 return Optional.of(savedUser);
             }
@@ -202,10 +276,17 @@ public class UserService implements UserDetailsService {
      * @param userId 用户ID
      * @return 图书列表
      */
+    @Transactional(readOnly = true)
     public List<Book> getBorrowedBooks(Long userId) {
         return userRepository.findById(userId)
-                .map(User::getBorrowedBooks)
-                .orElse(List.of());
+                .map(user -> {
+                    // 强制初始化懒加载集合
+                    List<Book> borrowedBooks = user.getBorrowedBooks();
+                    // 触发懒加载，确保数据在事务内被加载
+                    borrowedBooks.size();
+                    return new ArrayList<>(borrowedBooks);
+                })
+                .orElse(new ArrayList<>());
     }
 
     /**

@@ -18,13 +18,13 @@ import java.util.function.Function;
 @Component
 public class JwtUtil {
 
-    // JWT密钥
-    private final SecretKey secretKey = Keys.secretKeyFor(SignatureAlgorithm.HS512);
-    
+    // JWT密钥 - 使用固定密钥避免重启后token失效，确保长度足够支持HS512
+    private final SecretKey secretKey = Keys.hmacShaKeyFor("MySecretKeyForJWTTokenGenerationAndValidation123456789012345678901234567890".getBytes());
+
     // JWT过期时间（24小时）
     @Value("${jwt.expiration:86400000}")
     private Long jwtExpiration;
-    
+
     // 刷新令牌过期时间（7天）
     @Value("${jwt.refresh-expiration:604800000}")
     private Long refreshExpiration;

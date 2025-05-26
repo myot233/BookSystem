@@ -1,13 +1,14 @@
 package me.myot233.booksystem.controller;
 
+import me.myot233.booksystem.dto.UserDTO;
 import me.myot233.booksystem.entity.Book;
 import me.myot233.booksystem.entity.User;
 import me.myot233.booksystem.service.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -29,15 +30,21 @@ public class UserController {
 
     /**
      * 获取当前登录用户信息
-     * @param userDetails 当前登录用户
      * @return 用户信息
      */
     @GetMapping("/me")
-    public ResponseEntity<User> getCurrentUser(@AuthenticationPrincipal UserDetails userDetails) {
-        if (userDetails != null) {
-            Optional<User> user = userService.getUserByUsername(userDetails.getUsername());
-            return user.map(ResponseEntity::ok)
-                    .orElse(ResponseEntity.notFound().build());
+    public ResponseEntity<UserDTO> getCurrentUser() {
+        // 从SecurityContext中获取当前认证用户
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication != null && authentication.isAuthenticated() &&
+            !"anonymousUser".equals(authentication.getName())) {
+
+            String username = authentication.getName();
+            Optional<User> userOpt = userService.getUserByUsername(username);
+
+            if (userOpt.isPresent()) {
+                return ResponseEntity.ok(UserDTO.fromUser(userOpt.get()));
+            }
         }
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
     }
@@ -47,8 +54,12 @@ public class UserController {
      * @return 用户列表
      */
     @GetMapping
-    public ResponseEntity<List<User>> getAllUsers() {
-        return ResponseEntity.ok(userService.getAllUsers());
+    public ResponseEntity<List<UserDTO>> getAllUsers() {
+        List<User> users = userService.getAllUsers();
+        List<UserDTO> userDTOs = users.stream()
+                .map(UserDTO::fromUser)
+                .toList();
+        return ResponseEntity.ok(userDTOs);
     }
 
     /**
@@ -57,9 +68,9 @@ public class UserController {
      * @return 用户
      */
     @GetMapping("/{id}")
-    public ResponseEntity<User> getUserById(@PathVariable Long id) {
+    public ResponseEntity<UserDTO> getUserById(@PathVariable Long id) {
         Optional<User> user = userService.getUserById(id);
-        return user.map(ResponseEntity::ok)
+        return user.map(u -> ResponseEntity.ok(UserDTO.fromUser(u)))
                 .orElse(ResponseEntity.notFound().build());
     }
 
@@ -69,12 +80,13 @@ public class UserController {
      * @return 创建后的用户
      */
     @PostMapping
-    public ResponseEntity<User> createUser(@RequestBody User user) {
+    public ResponseEntity<UserDTO> createUser(@RequestBody User user) {
         // 检查用户名是否已存在
         if (userService.getUserByUsername(user.getUsername()).isPresent()) {
             return ResponseEntity.status(HttpStatus.CONFLICT).build();
         }
-        return new ResponseEntity<>(userService.createUser(user), HttpStatus.CREATED);
+        User createdUser = userService.createUser(user);
+        return new ResponseEntity<>(UserDTO.fromUser(createdUser), HttpStatus.CREATED);
     }
 
     /**
@@ -84,10 +96,10 @@ public class UserController {
      * @return 更新后的用户
      */
     @PutMapping("/{id}")
-    public ResponseEntity<User> updateUser(@PathVariable Long id, @RequestBody User user) {
+    public ResponseEntity<UserDTO> updateUser(@PathVariable Long id, @RequestBody User user) {
         user.setId(id);
         Optional<User> updatedUser = userService.updateUser(user);
-        return updatedUser.map(ResponseEntity::ok)
+        return updatedUser.map(u -> ResponseEntity.ok(UserDTO.fromUser(u)))
                 .orElse(ResponseEntity.notFound().build());
     }
 
@@ -106,16 +118,26 @@ public class UserController {
     }
 
     /**
-     * 获取用户借阅的图书（管理员）
+     * 获取指定用户的借阅图书列表（管理员权限）
      * @param id 用户ID
      * @return 图书列表
      */
     @GetMapping("/{id}/books")
     public ResponseEntity<List<Book>> getUserBooks(@PathVariable Long id) {
-        if (userService.getUserById(id).isPresent()) {
-            return ResponseEntity.ok(userService.getBorrowedBooks(id));
+        try {
+            // 验证用户是否存在
+            Optional<User> userOpt = userService.getUserById(id);
+            if (userOpt.isEmpty()) {
+                return ResponseEntity.notFound().build();
+            }
+
+            // 获取用户借阅的图书
+            List<Book> borrowedBooks = userService.getBorrowedBooks(id);
+            return ResponseEntity.ok(borrowedBooks);
+
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
-        return ResponseEntity.notFound().build();
     }
 
     /**
@@ -125,9 +147,9 @@ public class UserController {
      * @return 更新后的用户
      */
     @PostMapping("/{userId}/books/{bookId}")
-    public ResponseEntity<User> borrowBook(@PathVariable Long userId, @PathVariable Long bookId) {
-        Optional<User> user = userService.borrowBook(bookId);
-        return user.map(ResponseEntity::ok)
+    public ResponseEntity<UserDTO> borrowBook(@PathVariable Long userId, @PathVariable Long bookId) {
+        Optional<User> user = userService.borrowBookForUser(userId, bookId);
+        return user.map(u -> ResponseEntity.ok(UserDTO.fromUser(u)))
                 .orElse(ResponseEntity.badRequest().build());
     }
 
@@ -138,61 +160,82 @@ public class UserController {
      * @return 更新后的用户
      */
     @DeleteMapping("/{userId}/books/{bookId}")
-    public ResponseEntity<User> returnBook(@PathVariable Long userId, @PathVariable Long bookId) {
-        Optional<User> user = userService.returnBook( bookId);
-        return user.map(ResponseEntity::ok)
+    public ResponseEntity<UserDTO> returnBook(@PathVariable Long userId, @PathVariable Long bookId) {
+        Optional<User> user = userService.returnBookForUser(userId, bookId);
+        return user.map(u -> ResponseEntity.ok(UserDTO.fromUser(u)))
                 .orElse(ResponseEntity.badRequest().build());
     }
 
     // ==================== 用户自己的借阅管理接口 ====================
 
     /**
-     * 获取当前用户借阅的图书
-     * @param userDetails 当前登录用户
+     * 获取当前用户的借阅图书列表
      * @return 图书列表
      */
     @GetMapping("/me/books")
-    public ResponseEntity<List<Book>> getMyBorrowedBooks(@AuthenticationPrincipal UserDetails userDetails) {
-        Optional<User> userOpt = userService.getUserByUsername(userDetails.getUsername());
-        if (userOpt.isPresent()) {
-            return ResponseEntity.ok(userService.getBorrowedBooks(userOpt.get().getId()));
+    public ResponseEntity<List<Book>> getMyBorrowedBooks() {
+        try {
+            // 从SecurityContext获取当前认证用户
+            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+
+            if (authentication == null || !authentication.isAuthenticated() ||
+                "anonymousUser".equals(authentication.getName())) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+            }
+
+            // 获取用户名并查找用户
+            String username = authentication.getName();
+            Optional<User> userOpt = userService.getUserByUsername(username);
+
+            if (userOpt.isEmpty()) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+            }
+
+            // 获取用户借阅的图书
+            User user = userOpt.get();
+            List<Book> borrowedBooks = userService.getBorrowedBooks(user.getId());
+            return ResponseEntity.ok(borrowedBooks);
+
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
-        return ResponseEntity.notFound().build();
     }
 
     /**
      * 当前用户借阅图书
      * @param bookId 图书ID
-     * @param userDetails 当前登录用户
      * @return 更新后的用户
      */
     @PostMapping("/me/books/{bookId}")
-    public ResponseEntity<User> borrowBookForMe(@PathVariable Long bookId,
-                                               @AuthenticationPrincipal UserDetails userDetails) {
-        Optional<User> userOpt = userService.getUserByUsername(userDetails.getUsername());
-        if (userOpt.isPresent()) {
-            Optional<User> user = userService.borrowBook(bookId);
-            return user.map(ResponseEntity::ok)
+    public ResponseEntity<UserDTO> borrowBookForMe(@PathVariable Long bookId) {
+        // 从SecurityContext中获取当前认证用户
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication != null && authentication.isAuthenticated() &&
+            !"anonymousUser".equals(authentication.getName())) {
+
+            Optional<User> updatedUser = userService.borrowBook(bookId);
+            return updatedUser.map(user -> ResponseEntity.ok(UserDTO.fromUser(user)))
                     .orElse(ResponseEntity.badRequest().build());
         }
-        return ResponseEntity.notFound().build();
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
     }
 
     /**
      * 当前用户归还图书
      * @param bookId 图书ID
-     * @param userDetails 当前登录用户
      * @return 更新后的用户
      */
     @DeleteMapping("/me/books/{bookId}")
-    public ResponseEntity<User> returnBookForMe(@PathVariable Long bookId,
-                                               @AuthenticationPrincipal UserDetails userDetails) {
-        Optional<User> userOpt = userService.getUserByUsername(userDetails.getUsername());
-        if (userOpt.isPresent()) {
-            Optional<User> user = userService.returnBook(bookId);
-            return user.map(ResponseEntity::ok)
+    public ResponseEntity<UserDTO> returnBookForMe(@PathVariable Long bookId) {
+        // 从SecurityContext中获取当前认证用户
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication != null && authentication.isAuthenticated() &&
+            !"anonymousUser".equals(authentication.getName())) {
+
+            Optional<User> updatedUser = userService.returnBook(bookId);
+            return updatedUser.map(user -> ResponseEntity.ok(UserDTO.fromUser(user)))
                     .orElse(ResponseEntity.badRequest().build());
         }
-        return ResponseEntity.notFound().build();
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
     }
 }

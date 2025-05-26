@@ -1,5 +1,6 @@
 package me.myot233.booksystem.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -104,6 +105,7 @@ public class User implements UserDetails {
     /**
      * 借阅的图书
      */
+    @JsonIgnore  // 避免JSON序列化时的懒加载问题
     @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(
         name = "user_book_borrowings",

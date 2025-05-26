@@ -91,15 +91,27 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.POST, "/api/books").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.PUT, "/api/books/**").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.DELETE, "/api/books/**").hasRole("ADMIN")
-                // 当前用户信息需要认证（必须在/api/users/**之前）
-                .requestMatchers("/api/users/me").authenticated()
-                // 用户自己的借阅管理需要认证（普通用户权限）
-                .requestMatchers("/api/users/me/books/**").authenticated()
+                // 统计接口权限配置
+                // 公开的统计接口（不需要认证）
+                .requestMatchers(HttpMethod.GET, "/api/statistics/hot-books").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/statistics/today-borrows").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/statistics/online-users").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/statistics/categories").permitAll()
+                // 管理员专用的统计接口（已通过@PreAuthorize配置）
+                .requestMatchers("/api/statistics/**").hasRole("ADMIN")
+                .requestMatchers("/api/redis/**").hasRole("ADMIN")
+                // 最具体的路径优先匹配
+                // 用户自己的借阅管理（最具体）
                 .requestMatchers(HttpMethod.GET, "/api/users/me/books").authenticated()
-                // 管理员管理所有用户借阅需要管理员权限
+                .requestMatchers(HttpMethod.POST, "/api/users/me/books/**").authenticated()
+                .requestMatchers(HttpMethod.DELETE, "/api/users/me/books/**").authenticated()
+                // 当前用户信息
+                .requestMatchers("/api/users/me/**").authenticated()
+                .requestMatchers("/api/users/me").authenticated()
+                // 管理员管理其他用户的借阅
                 .requestMatchers("/api/users/*/books/**").hasRole("ADMIN")
-                .requestMatchers(HttpMethod.GET, "/api/users/*/books").hasRole("ADMIN")
-                // 用户管理需要管理员权限
+                .requestMatchers("/api/users/*/books").hasRole("ADMIN")
+                // 用户管理（最后匹配，最不具体）
                 .requestMatchers("/api/users/**").hasRole("ADMIN")
                 // 通知相关接口需要认证
                 .requestMatchers("/api/notifications/**").authenticated()

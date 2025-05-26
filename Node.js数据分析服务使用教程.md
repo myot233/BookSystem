@@ -335,21 +335,43 @@ curl "http://localhost:3001/api/stats/hot-books?limit=10"
 
 ### Spring Boot端调用示例
 
-当您的Spring Boot应用集成了AnalyticsService后，可以通过以下接口访问分析数据：
+当您的Spring Boot应用集成了StatisticsService后，可以通过以下接口访问分析数据：
 
-#### 1. 通过Spring Boot获取今日统计
+#### 1. 通过Spring Boot获取热门图书排行
 ```bash
-curl http://localhost:8080/api/analytics/today
+curl http://localhost:8080/api/statistics/hot-books?limit=5
 ```
 
-#### 2. 通过Spring Boot获取热门图书
+#### 2. 通过Spring Boot获取今日借阅统计
 ```bash
-curl http://localhost:8080/api/analytics/hot-books?limit=5
+curl http://localhost:8080/api/statistics/today-borrows
 ```
 
-#### 3. 管理员查看总体统计
+#### 3. 通过Spring Boot获取在线用户数
 ```bash
-curl http://localhost:8080/api/analytics/overview \
+curl http://localhost:8080/api/statistics/online-users
+```
+
+#### 4. 通过Spring Boot获取图书分类统计
+```bash
+curl http://localhost:8080/api/statistics/categories
+```
+
+#### 5. 管理员查看系统综合统计
+```bash
+curl http://localhost:8080/api/statistics/system \
+  -H "Authorization: Bearer <admin-jwt-token>"
+```
+
+#### 6. 管理员查看最近7天趋势
+```bash
+curl http://localhost:8080/api/statistics/recent-seven-days \
+  -H "Authorization: Bearer <admin-jwt-token>"
+```
+
+#### 7. 管理员查看活跃用户排行
+```bash
+curl http://localhost:8080/api/statistics/active-users \
   -H "Authorization: Bearer <admin-jwt-token>"
 ```
 
@@ -422,17 +444,25 @@ curl -X POST http://localhost:3001/api/admin/cleanup
 
 #### 每日工作流程：
 ```bash
-# 1. 检查服务状态
-curl http://localhost:3001/api/status
+# 1. 检查Spring Boot统计服务状态
+curl http://localhost:8080/api/statistics/today-borrows
 
 # 2. 查看今日概况
-curl http://localhost:3001/api/stats/today
+curl http://localhost:8080/api/statistics/online-users
 
 # 3. 分析热门图书
-curl "http://localhost:3001/api/stats/hot-books?limit=10"
+curl "http://localhost:8080/api/statistics/hot-books?limit=10"
 
-# 4. 查看一周趋势
-curl "http://localhost:3001/api/stats/recent-days?days=7"
+# 4. 查看图书分类统计
+curl http://localhost:8080/api/statistics/categories
+
+# 5. 管理员查看系统综合统计
+curl http://localhost:8080/api/statistics/system \
+  -H "Authorization: Bearer <admin-jwt-token>"
+
+# 6. 管理员查看一周趋势
+curl http://localhost:8080/api/statistics/recent-seven-days \
+  -H "Authorization: Bearer <admin-jwt-token>"
 ```
 
 ### 场景2：数据分析报告生成
@@ -444,19 +474,32 @@ echo "=== 图书馆周报 ===" > weekly_report.txt
 echo "生成时间: $(date)" >> weekly_report.txt
 echo "" >> weekly_report.txt
 
-# 获取总体统计
-echo "=== 总体统计 ===" >> weekly_report.txt
-curl -s http://localhost:3001/api/stats/overview | jq . >> weekly_report.txt
+# 获取系统综合统计（需要管理员token）
+echo "=== 系统综合统计 ===" >> weekly_report.txt
+curl -s http://localhost:8080/api/statistics/system \
+  -H "Authorization: Bearer <admin-jwt-token>" | jq . >> weekly_report.txt
 echo "" >> weekly_report.txt
 
 # 获取热门图书
 echo "=== 热门图书TOP10 ===" >> weekly_report.txt
-curl -s "http://localhost:3001/api/stats/hot-books?limit=10" | jq . >> weekly_report.txt
+curl -s "http://localhost:8080/api/statistics/hot-books?limit=10" | jq . >> weekly_report.txt
 echo "" >> weekly_report.txt
 
-# 获取最近7天数据
+# 获取最近7天数据（需要管理员token）
 echo "=== 最近7天趋势 ===" >> weekly_report.txt
-curl -s "http://localhost:3001/api/stats/recent-days?days=7" | jq . >> weekly_report.txt
+curl -s http://localhost:8080/api/statistics/recent-seven-days \
+  -H "Authorization: Bearer <admin-jwt-token>" | jq . >> weekly_report.txt
+echo "" >> weekly_report.txt
+
+# 获取活跃用户排行（需要管理员token）
+echo "=== 活跃用户排行 ===" >> weekly_report.txt
+curl -s http://localhost:8080/api/statistics/active-users \
+  -H "Authorization: Bearer <admin-jwt-token>" | jq . >> weekly_report.txt
+echo "" >> weekly_report.txt
+
+# 获取图书分类统计
+echo "=== 图书分类统计 ===" >> weekly_report.txt
+curl -s http://localhost:8080/api/statistics/categories | jq . >> weekly_report.txt
 ```
 
 ### 场景3：实时监控仪表板
@@ -474,28 +517,26 @@ while true; do
 
     # 今日统计
     echo "📊 今日统计:"
-    curl -s http://localhost:3001/api/stats/today | jq -r '
-        "  借阅: \(.borrows) 次",
-        "  归还: \(.returns) 次",
-        "  在线用户: \(.onlineUsers) 人",
-        "  净借阅: \(.netBorrows) 本"'
-    echo ""
-
-    # 系统状态
-    echo "🔧 系统状态:"
-    curl -s http://localhost:3001/api/stats/overview | jq -r '
-        "  总借阅: \(.totalBorrows) 次",
-        "  追踪图书: \(.trackedBooks) 本",
-        "  运行时间: \(.systemUptime | floor) 秒"'
+    TODAY_BORROWS=$(curl -s http://localhost:8080/api/statistics/today-borrows)
+    ONLINE_USERS=$(curl -s http://localhost:8080/api/statistics/online-users)
+    echo "  今日借阅: $TODAY_BORROWS 次"
+    echo "  在线用户: $ONLINE_USERS 人"
     echo ""
 
     # 热门图书
     echo "🔥 热门图书TOP5:"
-    curl -s "http://localhost:3001/api/stats/hot-books?limit=5" | jq -r '
-        .books[] | "  图书ID: \(.bookId) (借阅\(.borrowCount)次)"'
+    curl -s "http://localhost:8080/api/statistics/hot-books?limit=5" | jq -r '
+        .[] | "  \(.title) - \(.author) (借阅\(.borrowed)次)"'
+    echo ""
+
+    # 图书分类统计
+    echo "📚 图书分类统计:"
+    curl -s http://localhost:8080/api/statistics/categories | jq -r '
+        to_entries[] | "  \(.key): \(.value) 本"'
 
     echo ""
     echo "========================================="
+    echo "注意：管理员统计需要token，请使用Spring Boot接口"
     sleep 10
 done
 ```
@@ -519,16 +560,23 @@ done
 ```bash
 #!/bin/bash
 # 检查今日借阅是否异常
-TODAY_BORROWS=$(curl -s http://localhost:3001/api/stats/today | jq '.borrows')
+TODAY_BORROWS=$(curl -s http://localhost:8080/api/statistics/today-borrows)
 
 if [ "$TODAY_BORROWS" -gt 100 ]; then
     echo "警告：今日借阅数异常高 ($TODAY_BORROWS)" | mail -s "图书系统警报" admin@library.com
 fi
 
-# 检查服务状态
-STATUS=$(curl -s http://localhost:3001/api/status | jq -r '.status')
-if [ "$STATUS" != "running" ]; then
-    echo "错误：分析服务状态异常 ($STATUS)" | mail -s "服务故障警报" admin@library.com
+# 检查在线用户数是否异常
+ONLINE_USERS=$(curl -s http://localhost:8080/api/statistics/online-users)
+if [ "$ONLINE_USERS" -gt 50 ]; then
+    echo "警告：在线用户数异常高 ($ONLINE_USERS)" | mail -s "系统负载警报" admin@library.com
+fi
+
+# 检查Redis服务状态（需要管理员token）
+REDIS_STATUS=$(curl -s http://localhost:8080/api/redis/info \
+  -H "Authorization: Bearer <admin-jwt-token>" | jq -r '.status')
+if [ "$REDIS_STATUS" != "connected" ]; then
+    echo "错误：Redis连接状态异常 ($REDIS_STATUS)" | mail -s "Redis故障警报" admin@library.com
 fi
 ```
 
@@ -538,9 +586,18 @@ fi
 
 #### 数据导出格式：
 ```bash
-# 导出CSV格式的最近30天数据
-curl -s "http://localhost:3001/api/stats/recent-days?days=30" | \
-jq -r '.data[] | [.date, .borrows, .returns, .loginUsers] | @csv' > analytics_data.csv
+# 导出CSV格式的最近7天数据（需要管理员token）
+curl -s http://localhost:8080/api/statistics/recent-seven-days \
+  -H "Authorization: Bearer <admin-jwt-token>" | \
+jq -r 'to_entries[] | [.key, .value] | @csv' > analytics_data.csv
+
+# 导出热门图书数据
+curl -s "http://localhost:8080/api/statistics/hot-books?limit=20" | \
+jq -r '.[] | [.id, .title, .author, .borrowed] | @csv' > hot_books.csv
+
+# 导出图书分类统计
+curl -s http://localhost:8080/api/statistics/categories | \
+jq -r 'to_entries[] | [.key, .value] | @csv' > categories.csv
 ```
 
 ### 2. 集成Grafana
@@ -548,10 +605,51 @@ jq -r '.data[] | [.date, .borrows, .returns, .loginUsers] | @csv' > analytics_da
 #### 创建数据源配置：
 ```json
 {
-  "name": "BookAnalytics",
+  "name": "BookStatistics",
   "type": "json",
-  "url": "http://localhost:3001/api/stats/overview",
-  "access": "proxy"
+  "url": "http://localhost:8080/api/statistics/system",
+  "access": "proxy",
+  "headers": {
+    "Authorization": "Bearer <admin-jwt-token>"
+  }
+}
+```
+
+#### 推荐的监控面板：
+```json
+{
+  "dashboard": {
+    "title": "图书管理系统监控",
+    "panels": [
+      {
+        "title": "今日借阅统计",
+        "type": "stat",
+        "targets": [
+          {
+            "url": "http://localhost:8080/api/statistics/today-borrows"
+          }
+        ]
+      },
+      {
+        "title": "在线用户数",
+        "type": "stat",
+        "targets": [
+          {
+            "url": "http://localhost:8080/api/statistics/online-users"
+          }
+        ]
+      },
+      {
+        "title": "热门图书排行",
+        "type": "table",
+        "targets": [
+          {
+            "url": "http://localhost:8080/api/statistics/hot-books?limit=10"
+          }
+        ]
+      }
+    ]
+  }
 }
 ```
 
