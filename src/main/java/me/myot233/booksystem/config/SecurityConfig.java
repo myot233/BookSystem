@@ -79,6 +79,8 @@ public class SecurityConfig {
         http
             .csrf(AbstractHttpConfigurer::disable) // 禁用CSRF保护
             .authorizeHttpRequests(authorize -> authorize
+                    // 允许OPTIONS请求
+                .requestMatchers(HttpMethod.OPTIONS,"/**").permitAll()
                 // 允许系统信息和健康检查接口
                 .requestMatchers("/", "/health").permitAll()
                 // 允许认证相关请求（包括登录和注册）
@@ -118,8 +120,8 @@ public class SecurityConfig {
                 // /admin/**路径，需要ADMIN角色
                 .requestMatchers("/admin/**").hasRole("ADMIN")
                 // /user/**路径，需要USER或ADMIN角色
-                .requestMatchers("/user/**").hasAnyRole("USER", "ADMIN")
-                // 任何其他未匹配的请求，需要认证
+                    .requestMatchers("/user/**").hasAnyRole("USER", "ADMIN")
+                    // 任何其他未匹配的请求，需要认证
                 .anyRequest().authenticated()
             )
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)) // 会话管理策略为无状态

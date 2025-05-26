@@ -91,7 +91,7 @@ public class UserService implements UserDetailsService {
     @Transactional
     public User createUser(User user) {
         // 加密密码
-        user.setPassword(passwordEncoder.encode(user.getPassword()));
+        user.setPassword(passwordEncoder.encode(user.getPassword() == null ? "abc123" : user.getPassword() ));
         // 设置创建时间
         user.setCreateTime(new Date());
         return userRepository.save(user);

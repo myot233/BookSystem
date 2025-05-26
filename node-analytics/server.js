@@ -4,7 +4,7 @@ const cron = require('node-cron');
 const cors = require('cors');
 
 const app = express();
-const PORT = 3001;
+const PORT = 9999;
 
 // 中间件
 app.use(cors());
@@ -15,9 +15,9 @@ const redisClient = redis.createClient({
   socket: {
     host: 'localhost',
     port: 6379
-  }
+  },
   // 如果Redis设置了密码，添加下面的配置
-  // password: '123456'
+  password: '123456'
 });
 
 // Redis连接
